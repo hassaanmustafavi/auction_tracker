@@ -730,6 +730,13 @@ def refresh_page(driver, wait):
     except Exception as e:
         print(f"⚠️ Refresh logic error: {e}")
 
+    # (NEW) 0) If tooltip/nudge close icon present, click it first
+    try:
+        tooltip_close = driver.find_element(By.CSS_SELECTOR, "i[data-elm-id='header_nudge_preferences_tooltip_close_icon']")
+        driver.execute_script("arguments[0].click();", tooltip_close)
+        time.sleep(0.2)  # small delay to let UI collapse
+    except Exception:
+        pass
 
    # --- Step 6: Open 'Layout' and click "List" option; ensure menu closes ---
 
