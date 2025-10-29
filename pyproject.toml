@@ -1,0 +1,15 @@
+[project]
+name = "auction-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "google-auth>=2.41.1",
+    "gspread>=6.2.1",
+    "psutil>=7.1.1",
+    "pytest>=8.4.2",
+    "python-dotenv>=1.1.1",
+    "selenium>=4.36.0",
+    "webdriver-manager>=4.0.2",
+]
