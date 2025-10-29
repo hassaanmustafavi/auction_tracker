@@ -67,7 +67,7 @@ WAIT_TIME = 10
 PRE_TYPE_WAIT = 1.0
 MAX_LOGIN_RETRIES = 3  # fresh browser retries per profile
 REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
-CAPTCHA_WAIT = 5*60
+CAPTCHA_WAIT = 2*60
 WAIT_AFTER_EACH_PROFILE = 15
 WAIT_AFTER_EACH_STATE = 3*60
 WAIT_AFTER_EACH_DETAIL_PAGE = 1
@@ -822,6 +822,7 @@ def refresh_page(driver, wait):
 
 def _detect_captcha(driver: webdriver.Chrome) -> bool:
     try:
+        time.sleep(2)  # small wait to let any captcha load
         # 1. Title heuristics
         title_text = (driver.title or "").lower()
         if "captcha" in title_text:
@@ -858,6 +859,32 @@ def _detect_captcha(driver: webdriver.Chrome) -> bool:
         pass
 
     return False
+
+
+# --- Driver cooldown / rehydration helpers ---
+
+def cooldown_add(cooldown_list: list[dict], profile_name: str, entries_until_retry: int = 20):
+    """Remember to try re-opening this profile after N entries have been processed."""
+    cooldown_list.append({"profile": profile_name, "remaining": entries_until_retry})
+
+def cooldown_tick_and_try_rehydrate(cooldown_list: list[dict], detail_pool: list[tuple[str, webdriver.Chrome]]):
+    """
+    Decrement the 'remaining' counter for each cooldown item. When it reaches 0,
+    attempt to re-open that profile driver. If successful, put it back into detail_pool.
+    """
+    # iterate over a shallow copy so we can remove while iterating
+    for item in cooldown_list[:]:
+        item["remaining"] -= 1
+        if item["remaining"] <= 0:
+            # try to bring it back
+            res = load_single_detail_driver(item["profile"])
+            if res:
+                detail_pool.append(res)
+                cooldown_list.remove(item)
+            else:
+                # if re-open failed, give it another full cooldown window
+                item["remaining"] = 20
+
 
 
 # ---------- Google Sheets helpers (service account in ./secrets/sheet_credentials.json) ----------
@@ -905,7 +932,7 @@ def scrape_row_with_driver(
 ):
     try:
         driver.get(link)
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='property_header_address']")))
+        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
 
         if _detect_captcha(driver):
@@ -1050,22 +1077,19 @@ def insert_new_links_first(
     new_links: list[str],
     detail_drivers: list[tuple[str, webdriver.Chrome]],
 ) -> dict:
-    """
-    Push each new link as a fresh row at the TOP (row 2).
-    No link-index, no de-dup scan.
-    """
     stats = {"attempted": 0, "inserted": 0, "failed": 0}
     if not new_links:
         return stats
 
-    ws = _open_zone_worksheet(zone)    # ensures NEW_HEADER
+    ws = _open_zone_worksheet(zone)
     header_cols = NEW_HEADER
 
-    # simple rotation across preloaded detail drivers
     def pick_driver(i: int) -> tuple[str, webdriver.Chrome]:
         return detail_drivers[i % len(detail_drivers)]
 
     r_i = 0
+    cooldown: list[dict] = []  # <-- NEW
+
     for raw_link in new_links:
         link = (raw_link or "").strip()
         if not link:
@@ -1074,13 +1098,17 @@ def insert_new_links_first(
         stats["attempted"] += 1
         if not detail_drivers:
             stats["failed"] += 1
-            break
+            # still tick cooldown so drivers may come back
+            cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+            if not detail_drivers:
+                # no available drivers right now; move to next link
+                continue
 
         pname, drv = pick_driver(r_i); r_i += 1
 
         vals = scrape_row_with_driver(drv, link, state, header_cols)
 
-        # captcha handling: drop that driver and retry once with next
+        # --- CAPTCHA handling: drop this driver, add to cooldown, retry once with next
         if isinstance(vals, dict) and vals.get("__captcha__"):
             try:
                 drv.quit()
@@ -1088,19 +1116,25 @@ def insert_new_links_first(
                 pass
             # remove from pool
             detail_drivers[:] = [(n, d) for (n, d) in detail_drivers if d is not drv]
+            # add to cooldown (retry after ~20 entries)
+            cooldown_add(cooldown, pname, entries_until_retry=20)
             r_i -= 1
+
+            # try next available driver
             if not detail_drivers:
                 stats["failed"] += 1
-                break
+                cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+                continue
             pname, drv = pick_driver(r_i); r_i += 1
             vals = scrape_row_with_driver(drv, link, state, header_cols)
 
         if not (isinstance(vals, list) and vals):
             stats["failed"] += 1
+            # tick cooldown after each link attempt
+            cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
             continue
 
         try:
-            # always stack at top (under header)
             if STACK_NEW_ROWS_AT_TOP and hasattr(ws, "insert_row"):
                 ws.insert_row(vals, index=2, value_input_option="USER_ENTERED")
             else:
@@ -1108,6 +1142,9 @@ def insert_new_links_first(
             stats["inserted"] += 1
         except Exception:
             stats["failed"] += 1
+
+        # --- after each processed link, tick cooldowns and try to rehydrate drivers
+        cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
 
     return stats
 
@@ -1173,11 +1210,6 @@ def update_prev_entries_for_zone_chunked_fullread(
     chunk_size: int = PREV_UPDATE_CHUNK_SIZE,
     max_chunks: int | None = MAX_PREV_UPDATE_CHUNKS,
 ) -> dict:
-    """
-    Loads the sheet in CHUNKS (A:J), filters rows by your criteria in-memory per chunk,
-    updates only those rows (at the same indices), then proceeds to next chunk.
-    Skips rows whose Added Date is today.
-    """
     stats = {
         "chunks_scanned": 0,
         "candidates": 0,
@@ -1190,22 +1222,20 @@ def update_prev_entries_for_zone_chunked_fullread(
         print("⚠️ No detail drivers available for prev update.")
         return stats
 
-    ws = _open_zone_worksheet(zone)  # enforces NEW_HEADER
+    ws = _open_zone_worksheet(zone)
     today = date.today()
 
-    # header
     header_vals = ws.get_values("A1:J1")
     header = header_vals[0] if header_vals else NEW_HEADER
 
-    # last used row (cheap via first column)
     try:
         colA = ws.col_values(1)
-        last_row = len(colA)  # includes header
+        last_row = len(colA)
     except Exception:
         last_row = 1
 
     if last_row <= 1:
-        return stats  # nothing to process
+        return stats
 
     data_start = 2
     data_end = last_row
@@ -1217,20 +1247,20 @@ def update_prev_entries_for_zone_chunked_fullread(
     chunk_idx = 0
     start = data_start
 
+    cooldown: list[dict] = []  # <-- NEW
+
     while start <= data_end:
         if max_chunks is not None and chunk_idx >= max_chunks:
             break
         end = min(start + chunk_size - 1, data_end)
 
-        # FULL READ this chunk (A:J)
         try:
-            rows = ws.get_values(f"A{start}:J{end}")  # list of row lists
+            rows = ws.get_values(f"A{start}:J{end}")
         except Exception:
             rows = []
 
-        # Build row dicts and filter
-        rownums = []     # sheet row number for each candidate
-        rowdicts = []    # full row dict for each candidate
+        rownums = []
+        rowdicts = []
         for offset, row_vals in enumerate(rows):
             rownum = start + offset
             row_dict = _row_dict_from_values(header, row_vals)
@@ -1242,40 +1272,48 @@ def update_prev_entries_for_zone_chunked_fullread(
         stats["candidates"] += len(rownums)
         chunk_idx += 1
 
-        # Process candidates in this chunk
         for rownum, row_dict in zip(rownums, rowdicts):
+            # If pool is empty, try to rehydrate first
             if not detail_drivers:
-                stats["failed"] += 1
-                break
+                cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+                if not detail_drivers:
+                    stats["failed"] += 1
+                    continue
 
             link = (row_dict.get("Link") or "").strip()
             state = (row_dict.get("State") or "").strip()
             if not link:
                 stats["failed"] += 1
+                cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
                 continue
 
             stats["attempted"] += 1
 
-            _, drv = pick_driver(r_i); r_i += 1
+            pname, drv = pick_driver(r_i); r_i += 1
 
             updated = scrape_row_with_driver(
                 drv, link, state,
                 header_cols=NEW_HEADER,
-                current_row=row_dict,     # merge if blanks
+                current_row=row_dict,
                 return_dict=True
             )
 
-            # Captcha handling: drop driver, retry once with next
             if isinstance(updated, dict) and updated.get("__captcha__"):
                 stats["captchas"] += 1
+                # retire the driver to cooldown
                 try: drv.quit()
                 except Exception: pass
                 detail_drivers[:] = [(n, d) for (n, d) in detail_drivers if d is not drv]
+                cooldown_add(cooldown, pname, entries_until_retry=20)
                 r_i -= 1
+
+                # retry once with next available driver
                 if not detail_drivers:
-                    stats["failed"] += 1
-                    break
-                _, drv = pick_driver(r_i); r_i += 1
+                    cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+                    if not detail_drivers:
+                        stats["failed"] += 1
+                        continue
+                pname, drv = pick_driver(r_i); r_i += 1
                 updated = scrape_row_with_driver(
                     drv, link, state,
                     header_cols=NEW_HEADER,
@@ -1285,19 +1323,22 @@ def update_prev_entries_for_zone_chunked_fullread(
 
             if not isinstance(updated, dict) or not updated:
                 stats["failed"] += 1
+                cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
                 continue
 
-            # Write back in-place
             try:
                 ws.update(f"A{rownum}:J{rownum}", [[updated.get(c, "") for c in NEW_HEADER]])
                 stats["updated"] += 1
             except Exception:
                 stats["failed"] += 1
 
-        # advance to next chunk
+            # after each processed row, tick cooldowns and try to rehydrate drivers
+            cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+
         start = end + 1
 
     return stats
+
 
 
 
@@ -1748,6 +1789,7 @@ def main():
                 if _detect_captcha(drv):
                     print("⚠️ CAPTCHA detected. Waiting...")
                     time.sleep(CAPTCHA_WAIT)
+                    attempt += 1
                     continue
 
                 # Quick pre-check for existing login
