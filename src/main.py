@@ -938,6 +938,10 @@ def scrape_row_with_driver(
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
         #time.sleep(2*60)  # small wait to ensure full render
 
+        driver.execute_script("window.focus();")
+        driver.set_window_position(0, 0)
+
+
         print(driver.execute_script("return window.innerHeight;"))
         print(driver.execute_script("return window.innerWidth;"))
 
