@@ -946,23 +946,9 @@ def scrape_row_with_driver(
         driver.execute_script("window.scrollTo(0, 0);")
         time.sleep(0.8)
 
-        # Click Property Details tab/header
-        try:
-            prop_details = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((
-                    By.CSS_SELECTOR,
-                    "h2[data-elm-id='property_details_title']"
-                ))
-            )
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", prop_details)
-            time.sleep(0.3)
-            prop_details.click()
-        except Exception as e:
-            print("❌ Could not click Property Details:", e)
 
-
-        if _detect_captcha(driver):
-            return {"__captcha__": True}
+        #if _detect_captcha(driver):
+        #    return {"__captcha__": True}
 
         def t(css: str) -> str:
             try:
