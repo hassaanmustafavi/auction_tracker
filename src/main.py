@@ -70,7 +70,7 @@ REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
 WAIT_AFTER_EACH_PROFILE = 3*60
 WAIT_AFTER_EACH_STATE = 15*60
-WAIT_AFTER_EACH_DETAIL_PAGE = 1.5
+WAIT_AFTER_EACH_DETAIL_PAGE = 1
 
 
 
@@ -921,6 +921,34 @@ def _open_zone_worksheet(zone_name: str):
 # =========================
 # ENRICHMENT HOOKS (you fill later)
 # =========================
+def wait_for_stable_text(driver, selector, timeout=8, stable_ms=350):
+    """
+    Wait until element text stops changing (React hydration safe).
+    stable_ms – how long the text must stay unchanged.
+    """
+    end = time.time() + timeout
+    last_text = None
+    stable_start = None
+
+    while time.time() < end:
+        try:
+            el = driver.find_element(By.CSS_SELECTOR, selector)
+            txt = el.text.strip()
+        except Exception:
+            time.sleep(0.05)
+            continue
+
+        if txt != last_text:
+            last_text = txt
+            stable_start = time.time()  # reset stability timer
+
+        # if text remained same long enough → UI settled
+        if txt and stable_start and (time.time() - stable_start)*1000 >= stable_ms:
+            return txt
+
+        time.sleep(0.08)
+
+    return last_text or ""
 
 def scrape_row_with_driver(
     driver,
@@ -934,6 +962,16 @@ def scrape_row_with_driver(
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
+
+        # ✅ Wait for auction date text to stabilize
+        auction_date_raw = wait_for_stable_text(
+            driver,
+            "[data-elm-id='date_value']"
+        ) or wait_for_stable_text(
+            driver,
+            "[data-elm-id='auction_duration_date_range']"
+        )
+
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
