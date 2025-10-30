@@ -934,7 +934,8 @@ def scrape_row_with_driver(
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
         driver.execute_script("window.focus();")
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
+        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']")))
+        driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
