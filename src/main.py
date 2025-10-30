@@ -933,6 +933,7 @@ def scrape_row_with_driver(
     try:
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+        driver.execute_script("window.focus();")
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
 
         if _detect_captcha(driver):
@@ -1011,6 +1012,7 @@ def scrape_row_with_driver(
 
         est_mv       = t("[data-elm-id='arv_value']")
         auction_date_raw = first_line(t("[data-elm-id='date_value']"))
+        print(f"   ▶️ Raw auction date text: '{auction_date_raw}'")
         auction_time = t("[data-elm-id='auction_start_time_value']")
         status_text  = t("[data-elm-id='property_gallery_status_label']")
 
@@ -1021,6 +1023,8 @@ def scrape_row_with_driver(
         if not auction_date and not auction_time:
             range_text = t("[data-elm-id='auction_duration_date_range']")
             if range_text:
+                print("ℹ️ Auction date & time missing; parsing from duration range...")
+                print(f"   ▶️ Raw range text: '{range_text}'")
                 # take left side before dash: 'Oct 27, 2025 7:00 AM - Oct 29, 2025' -> 'Oct 27, 2025 7:00 AM'
                 left_side = range_text.split(" - ", 1)[0].strip()
                 d_part, t_part = parse_date_time_from_text(left_side)
