@@ -933,13 +933,6 @@ def scrape_row_with_driver(
     try:
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
-        try:
-            driver.execute_script("window.scrollBy(0, 300);")
-            time.sleep(0.6)   # allow hydrate
-            driver.execute_script("window.scrollBy(0, -300);")
-            time.sleep(0.4)
-        except:
-            pass
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
 
         if _detect_captcha(driver):
@@ -1070,7 +1063,9 @@ def scrape_row_with_driver(
         merged["Added Date"] = datetime.now().strftime("%b %d, %Y")
 
         if return_dict:
+            print("🟢 Scraped data (dict):", merged)
             return merged
+        
 
         return [merged.get(col, "") for col in header_cols]
 
