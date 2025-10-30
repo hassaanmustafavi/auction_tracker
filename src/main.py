@@ -822,7 +822,7 @@ def refresh_page(driver, wait):
 
 def _detect_captcha(driver: webdriver.Chrome) -> bool:
     try:
-        time.sleep(5)  # small wait to let any captcha load
+        #time.sleep(5)  # small wait to let any captcha load
         # 1. Title heuristics
         title_text = (driver.title or "").lower()
         if "captcha" in title_text:
@@ -932,23 +932,15 @@ def scrape_row_with_driver(
 ):
     try:
         driver.get(link)
-        #time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+        time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
         #driver.execute_script("window.focus();")
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
         #time.sleep(2*60)  # small wait to ensure full render
 
-        # Scroll down to bottom
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(1.2)  # allow lazy elements to load
 
-        # Scroll back to top
-        driver.execute_script("window.scrollTo(0, 0);")
-        time.sleep(0.8)
-
-
-        #if _detect_captcha(driver):
-        #    return {"__captcha__": True}
+        if _detect_captcha(driver):
+            return {"__captcha__": True}
 
         def t(css: str) -> str:
             try:
