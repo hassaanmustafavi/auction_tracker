@@ -70,7 +70,7 @@ REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
 WAIT_AFTER_EACH_PROFILE = 3*60
 WAIT_AFTER_EACH_STATE = 15*60
-WAIT_AFTER_EACH_DETAIL_PAGE = 5
+WAIT_AFTER_EACH_DETAIL_PAGE = 1
 
 
 
@@ -1065,7 +1065,7 @@ def scrape_row_with_driver(
         if return_dict:
             return merged
 
-        print(f"🟢 Scraped data for link: {merged.get('Link') + merged.get('Auction Start Date')}")
+        print(f"🟢 Scraped data for link: {merged.get('Link') + merged}")
 
         return [merged.get(col, "") for col in header_cols]
 
