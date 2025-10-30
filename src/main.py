@@ -70,7 +70,7 @@ REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
 WAIT_AFTER_EACH_PROFILE = 3*60
 WAIT_AFTER_EACH_STATE = 15*60
-WAIT_AFTER_EACH_DETAIL_PAGE = 2
+WAIT_AFTER_EACH_DETAIL_PAGE = 1.5
 
 
 
@@ -1851,3 +1851,25 @@ def main():
 if __name__ == "__main__":
     main()
 
+def test_insert_links(zone: str, state: str, links: list[str]):
+    """
+    Manual test helper: loads *detail drivers*, calls insert_new_links_first
+    WITHOUT any scanning. Used to verify insertion works correctly.
+    """
+    # 1) load detail drivers
+    detail_pool = load_all_detail_drivers()
+    if not detail_pool:
+        print("❌ No detail drivers could be loaded.")
+        return
+
+    # 2) call the insert function
+    try:
+        stats = insert_new_links_first(
+            zone=zone,
+            state=state,
+            new_links=links,
+            detail_drivers=detail_pool
+        )
+        print(f"✅ TEST INSERT RESULT: {stats}")
+    finally:
+        shutdown_detail_drivers(detail_pool)
