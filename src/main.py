@@ -932,8 +932,8 @@ def scrape_row_with_driver(
 ):
     try:
         driver.get(link)
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
