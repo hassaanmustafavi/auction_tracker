@@ -938,6 +938,15 @@ def scrape_row_with_driver(
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
         #time.sleep(2*60)  # small wait to ensure full render
 
+        print(driver.execute_script("return window.innerHeight;"))
+        print(driver.execute_script("return window.innerWidth;"))
+
+
+        driver.execute_script("window.scrollBy(0, 200);")
+        time.sleep(0.4)
+        driver.execute_script("window.scrollBy(0, -200);")
+        time.sleep(1)
+
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
