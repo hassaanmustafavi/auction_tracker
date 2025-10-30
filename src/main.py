@@ -933,7 +933,10 @@ def scrape_row_with_driver(
     try:
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+        driver.execute_script("window.focus();")
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
+
+        time.sleep(2*60)  # small wait to ensure full render
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
