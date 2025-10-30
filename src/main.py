@@ -523,7 +523,7 @@ def _build_options(user_data_dir: Path, profile_dir_name: str, user_agent: str,
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-dev-shm-usage") 
     chrome_options.add_argument("--no-sandbox")
 
     # Disable popups & password manager
@@ -937,6 +937,29 @@ def scrape_row_with_driver(
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
         #time.sleep(2*60)  # small wait to ensure full render
+
+        # Scroll down to bottom
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(1.2)  # allow lazy elements to load
+
+        # Scroll back to top
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(0.8)
+
+        # Click Property Details tab/header
+        try:
+            prop_details = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((
+                    By.CSS_SELECTOR,
+                    "h2[data-elm-id='property_details_title']"
+                ))
+            )
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", prop_details)
+            time.sleep(0.3)
+            prop_details.click()
+        except Exception as e:
+            print("❌ Could not click Property Details:", e)
+
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
