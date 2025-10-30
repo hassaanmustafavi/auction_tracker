@@ -1063,9 +1063,9 @@ def scrape_row_with_driver(
         merged["Added Date"] = datetime.now().strftime("%b %d, %Y")
 
         if return_dict:
-            print("🟢 Scraped data (dict):", merged)
             return merged
-        
+
+        print(f"🟢 Scraped data for link: {merged.get('Link') + merged.get('Auction Start Date')}")
 
         return [merged.get(col, "") for col in header_cols]
 
