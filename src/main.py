@@ -70,7 +70,18 @@ REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
 WAIT_AFTER_EACH_PROFILE = 3*60
 WAIT_AFTER_EACH_STATE = 15*60
-WAIT_AFTER_EACH_DETAIL_PAGE = 2
+WAIT_AFTER_EACH_DETAIL_PAGE = 1
+
+
+DISPLAY_MAP = {
+    "profile_1": ":1",
+    "profile_2": ":1",
+    "profile_3": ":1",
+    "profile_4": ":2",
+    "profile_5": ":3",
+    "profile_6": ":4",
+}
+
 
 
 
@@ -570,6 +581,11 @@ def _apply_stealth_and_headers(driver: webdriver.Chrome, user_agent: str, platfo
 def get_driver(profile_name: str) -> webdriver.Chrome:
     if profile_name not in PROFILE_SETTINGS:
         raise ValueError(f"Unknown profile '{profile_name}'. Expected: {list(PROFILE_SETTINGS.keys())}")
+    
+    
+    # 🔑 ensure the right virtual display is used for this profile
+    disp = DISPLAY_MAP.get(profile_name, os.environ.get("DISPLAY", ":0"))
+    os.environ["DISPLAY"] = disp
 
     cfg = PROFILE_SETTINGS[profile_name]
     user_dir = _ensure_profile_dir(profile_name)
@@ -931,8 +947,7 @@ def scrape_row_with_driver(
     return_dict: bool = False,  # False => list for inserts; True => dict for updates
 ):
     try:
-        driver.get(link)
-        time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+
         #driver.execute_script("window.focus();")
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
@@ -941,9 +956,8 @@ def scrape_row_with_driver(
         driver.execute_script("window.focus();")
         driver.set_window_position(0, 0)
 
-
-        print(driver.execute_script("return window.innerHeight;"))
-        print(driver.execute_script("return window.innerWidth;"))
+        driver.get(link)
+        time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
 
 
         driver.execute_script("window.scrollBy(0, 200);")
