@@ -949,7 +949,6 @@ def scrape_row_with_driver(
     try:
 
         #driver.execute_script("window.focus();")
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
         #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
         #time.sleep(2*60)  # small wait to ensure full render
 
@@ -958,6 +957,7 @@ def scrape_row_with_driver(
 
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
+        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
 
 
         driver.execute_script("window.scrollBy(0, 200);")
