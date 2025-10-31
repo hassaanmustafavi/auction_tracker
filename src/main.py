@@ -68,8 +68,8 @@ PRE_TYPE_WAIT = 1.0
 MAX_LOGIN_RETRIES = 3  # fresh browser retries per profile
 REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
-WAIT_AFTER_EACH_PROFILE = 3*60
-WAIT_AFTER_EACH_STATE = 15*60
+WAIT_AFTER_EACH_PROFILE = 15*60
+WAIT_AFTER_EACH_STATE = 3*60
 WAIT_AFTER_EACH_DETAIL_PAGE = 1
 
 
@@ -1039,7 +1039,6 @@ def scrape_row_with_driver(
 
         est_mv       = t("[data-elm-id='arv_value']")
         auction_date_raw = first_line(t("[data-elm-id='date_value']"))
-        print(f"   ▶️ Raw auction date text: '{auction_date_raw}'")
         auction_time = t("[data-elm-id='auction_start_time_value']")
         status_text  = t("[data-elm-id='property_gallery_status_label']")
 
@@ -1050,8 +1049,6 @@ def scrape_row_with_driver(
         if not auction_date and not auction_time:
             range_text = t("[data-elm-id='auction_duration_date_range']")
             if range_text:
-                print("ℹ️ Auction date & time missing; parsing from duration range...")
-                print(f"   ▶️ Raw range text: '{range_text}'")
                 # take left side before dash: 'Oct 27, 2025 7:00 AM - Oct 29, 2025' -> 'Oct 27, 2025 7:00 AM'
                 left_side = range_text.split(" - ", 1)[0].strip()
                 d_part, t_part = parse_date_time_from_text(left_side)
@@ -1881,26 +1878,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-def test_insert_links(zone: str, state: str, links: list[str]):
-    """
-    Manual test helper: loads *detail drivers*, calls insert_new_links_first
-    WITHOUT any scanning. Used to verify insertion works correctly.
-    """
-    # 1) load detail drivers
-    detail_pool = load_all_detail_drivers()
-    if not detail_pool:
-        print("❌ No detail drivers could be loaded.")
-        return
-
-    # 2) call the insert function
-    try:
-        stats = insert_new_links_first(
-            zone=zone,
-            state=state,
-            new_links=links,
-            detail_drivers=detail_pool
-        )
-        print(f"✅ TEST INSERT RESULT: {stats}")
-    finally:
-        shutdown_detail_drivers(detail_pool)
