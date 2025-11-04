@@ -8,6 +8,7 @@ wheels/
 secrets/
 chrome profiles/
 temp/
+logs/
 
 # Virtual environments
 .venv

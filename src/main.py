@@ -47,7 +47,7 @@ SPREADSHEET_ID = "1pkTmWR5rr2TFK3MNEO1mdindCk9erk4RQXItVPaEEjA"
 
 # === Chunk knobs ===
 PREV_UPDATE_CHUNK_SIZE = 500     # how many data rows per chunk (excluding header)
-MAX_PREV_UPDATE_CHUNKS = 20        # how many chunks to process per run
+MAX_PREV_UPDATE_CHUNKS = 100        # how many chunks to process per run
 
 # === Row insert knobs ===
 STACK_NEW_ROWS_AT_TOP = True      # True => insert at row 2; False => append at bottom
@@ -1112,11 +1112,23 @@ def insert_new_links_first(
     ws = _open_zone_worksheet(zone)
     header_cols = NEW_HEADER
 
+    def blank_row(link: str):
+        """Return a row with only link & state; everything else blank. Completed = 0."""
+        row = {col: "" for col in header_cols}
+        row["Link"] = (link or "").strip()
+        row["State"] = (state or "").strip()
+
+        # mark not completed so spreadsheet logic doesn't treat as finished entry
+        row["Completed"] = "0"
+
+        return [row.get(col, "") for col in header_cols]
+
+
     def pick_driver(i: int) -> tuple[str, webdriver.Chrome]:
         return detail_drivers[i % len(detail_drivers)]
 
     r_i = 0
-    cooldown: list[dict] = []  # <-- NEW
+    cooldown = []
 
     for raw_link in new_links:
         link = (raw_link or "").strip()
@@ -1124,44 +1136,68 @@ def insert_new_links_first(
             continue
 
         stats["attempted"] += 1
+
+        # pick driver, or fail insert bare link
         if not detail_drivers:
             stats["failed"] += 1
-            # still tick cooldown so drivers may come back
-            cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
-            if not detail_drivers:
-                # no available drivers right now; move to next link
-                continue
 
-        pname, drv = pick_driver(r_i); r_i += 1
+            try:
+                row = blank_row(link)
+                ws.append_row(row, value_input_option="USER_ENTERED")
+                stats["inserted"] += 1  # because row successfully added
+            except Exception:
+                pass
+
+            cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
+            continue
+
+        pname, drv = pick_driver(r_i)
+        r_i += 1
 
         vals = scrape_row_with_driver(drv, link, state, header_cols)
 
-        # --- CAPTCHA handling: drop this driver, add to cooldown, retry once with next
+        # CAPTCHA → drop driver, retry once
         if isinstance(vals, dict) and vals.get("__captcha__"):
             try:
                 drv.quit()
             except Exception:
                 pass
-            # remove from pool
+
             detail_drivers[:] = [(n, d) for (n, d) in detail_drivers if d is not drv]
-            # add to cooldown (retry after ~20 entries)
             cooldown_add(cooldown, pname, entries_until_retry=20)
             r_i -= 1
 
-            # try next available driver
             if not detail_drivers:
                 stats["failed"] += 1
+                try:
+                    row = blank_row(link)
+                    ws.append_row(row, value_input_option="USER_ENTERED")
+                    stats["inserted"] += 1
+                except:
+                    pass
+
                 cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
                 continue
-            pname, drv = pick_driver(r_i); r_i += 1
+
+            pname, drv = pick_driver(r_i)
+            r_i += 1
             vals = scrape_row_with_driver(drv, link, state, header_cols)
 
+        # still failed? push empty row
         if not (isinstance(vals, list) and vals):
             stats["failed"] += 1
-            # tick cooldown after each link attempt
+
+            try:
+                row = blank_row(link)
+                ws.append_row(row, value_input_option="USER_ENTERED")
+                stats["inserted"] += 1
+            except:
+                pass
+
             cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
             continue
 
+        # ✅ normal successful scrape insert
         try:
             if STACK_NEW_ROWS_AT_TOP and hasattr(ws, "insert_row"):
                 ws.insert_row(vals, index=2, value_input_option="USER_ENTERED")
@@ -1170,11 +1206,17 @@ def insert_new_links_first(
             stats["inserted"] += 1
         except Exception:
             stats["failed"] += 1
+            try:
+                row = blank_row(link)
+                ws.append_row(row, value_input_option="USER_ENTERED")
+                stats["inserted"] += 1
+            except:
+                pass
 
-        # --- after each processed link, tick cooldowns and try to rehydrate drivers
         cooldown_tick_and_try_rehydrate(cooldown, detail_drivers)
 
     return stats
+
 
 
 def _parse_auction_date_to_date(s: str) -> date | None:
