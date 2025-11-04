@@ -1241,36 +1241,50 @@ def _row_dict_from_values(header: list[str], row_vals: list[str]) -> dict:
 
 def _is_candidate_row_full(row: dict, today: date) -> bool:
     """
-    Filter rules:
-      - Completed == "0"
-      - Added Date != today (date-only compare)
-      - Auction Start Date blank OR within ±1 day of today
+    New rules:
+    - Only process rows where Completed == "0"
+    - Skip rows added today
+    - Auction Start Date must be:
+        * blank, OR
+        * today, OR
+        * tomorrow
+    - Skip yesterday & any earlier dates
+    - Skip any dates after tomorrow
     """
+
     # Completed must be "0"
     if (row.get("Completed") or "").strip() != "0":
         return False
 
-    # Skip rows added today (regardless of time)
+    # Skip rows added today
     added_raw = (row.get("Added Date") or "").strip()
     if added_raw:
-        # expected format we stamp: "YYYY-MM-DD HH:MM:SS" -> compare date-only
         try:
             added_d = datetime.strptime(added_raw, "%b %d, %Y").date()
             if added_d == today:
                 return False
         except Exception:
-            # If Added Date is malformed, treat as not-today and continue
-            pass
+            pass  # malformed => treat as older
 
-    # Auction date condition
+    # Auction Date filter
     auct_raw = (row.get("Auction Start Date") or "").strip()
+
+    # Blank auction date → allowed
     if not auct_raw:
-        return True  # blank qualifies
-    auct_d = _parse_auction_date_to_date(auct_raw)
-    if auct_d is None:
-        # treat unparseable as blank per your rule
         return True
-    return abs((auct_d - today).days) <= 1
+
+    auct_d = _parse_auction_date_to_date(auct_raw)
+    if not auct_d:
+        # Unparseable date — treat like blank (allowed)
+        return True
+
+    # Allow only: today or tomorrow
+    if auct_d == today or auct_d == (today + timedelta(days=1)):
+        return True
+
+    # Otherwise skip (yesterday, past, or > tomorrow)
+    return False
+
 
 
 # ---- main chunked updater (full-read per chunk, in-place updates) ----
