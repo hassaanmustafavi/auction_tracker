@@ -947,21 +947,17 @@ def scrape_row_with_driver(
     return_dict: bool = False,  # False => list for inserts; True => dict for updates
 ):
     try:
-
-        #driver.execute_script("window.focus();")
-        #driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.CSS_SELECTOR, "[data-elm-id='add-to-calendar_trigger']"))
-        #time.sleep(2*60)  # small wait to ensure full render
-
         driver.get(link)
         time.sleep(WAIT_AFTER_EACH_DETAIL_PAGE)
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']")))
+        WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "[data-elm-id='auction-detail-box-status']"))
+        )
 
-
+        # small hydration nudge for Linux/virtual displays
         driver.execute_script("window.scrollBy(0, 200);")
         time.sleep(0.4)
         driver.execute_script("window.scrollBy(0, -200);")
         time.sleep(1)
-
 
         if _detect_captcha(driver):
             return {"__captcha__": True}
@@ -981,41 +977,24 @@ def scrape_row_with_driver(
             return s.strip()
 
         def strip_weekday_prefix(date_text: str) -> str:
-            """
-            Remove weekday prefixes like:
-              'Monday, Oct 27, 2025' -> 'Oct 27, 2025'
-              'Mon, Oct 27, 2025'    -> 'Oct 27, 2025'
-            If no weekday present, returns input unchanged.
-            """
             if not date_text:
                 return ""
             s = date_text.strip()
-            # if there's a comma and the token before it is alphabetic, drop it
             if "," in s:
                 first, rest = s.split(",", 1)
-                # accept both full and short weekday names (alphabetic token)
                 if first.strip().isalpha():
                     return rest.strip()
             return s
 
         def parse_date_time_from_text(s: str) -> tuple[str, str]:
-            """
-            Given a string like 'Oct 27, 2025 7:00 AM' or 'October 27, 2025 10:30 PM',
-            return ('Oct 27, 2025', '7:00 AM').
-            If time is missing, returns ('Oct 27, 2025', '').
-            """
             if not s:
                 return "", ""
-            # normalize spaces
             s = " ".join(s.split())
-            # Regex: Month Day, Year [Time AM/PM]
-            # Month can be short/long; AM/PM can be lower or upper.
             m = re.match(
                 r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2}),\s*(?P<year>\d{4})(?:\s+(?P<time>\d{1,2}:\d{2}\s*[APap][Mm]))?$",
                 s
             )
             if not m:
-                # If it doesn't match, try removing any weekday prefix first then retry once
                 s2 = strip_weekday_prefix(s)
                 m = re.match(
                     r"^(?P<month>[A-Za-z]+)\s+(?P<day>\d{1,2}),\s*(?P<year>\d{4})(?:\s+(?P<time>\d{1,2}:\d{2}\s*[APap][Mm]))?$",
@@ -1023,19 +1002,16 @@ def scrape_row_with_driver(
                 )
                 if not m:
                     return "", ""
-
             date_part = f"{m.group('month')} {m.group('day')}, {m.group('year')}"
             time_part = (m.group('time') or "").upper().replace("  ", " ").strip()
             return date_part, time_part
 
         # --- scrape raw values ---
-        opening_bid  = t("[data-elm-id='opening_bid_value']")
+        # (we’ll compute Opening Bid later using reserve/opening values)
         addr_raw = t("[data-elm-id='property_header_address']")
-        # convert newline → ", "
-        addr_line = " ".join(addr_raw.split())   # normalize whitespace
-        addr_line = addr_line.replace(" ,", ",") # cleanup if needed
+        addr_line = " ".join(addr_raw.split())
+        addr_line = addr_line.replace(" ,", ",")
         full_addr = addr_line
-
 
         est_mv       = t("[data-elm-id='arv_value']")
         auction_date_raw = first_line(t("[data-elm-id='date_value']"))
@@ -1045,11 +1021,10 @@ def scrape_row_with_driver(
         # 1) Strip weekday from auction_date_raw before finalizing
         auction_date = strip_weekday_prefix(auction_date_raw)
 
-        # 2) Fallback: if both date & time are blank, parse the auction duration range
+        # 2) Fallback: if both date & time are blank, try the range
         if not auction_date and not auction_time:
             range_text = t("[data-elm-id='auction_duration_date_range']")
             if range_text:
-                # take left side before dash: 'Oct 27, 2025 7:00 AM - Oct 29, 2025' -> 'Oct 27, 2025 7:00 AM'
                 left_side = range_text.split(" - ", 1)[0].strip()
                 d_part, t_part = parse_date_time_from_text(left_side)
                 auction_date = d_part or auction_date
@@ -1061,22 +1036,69 @@ def scrape_row_with_driver(
             nv = (new_val or "").strip()
             return nv if nv else (prev.get(prev_key) or "").strip()
 
+        # ---------- OPENING BID / RESERVE LOGIC (NEW) ----------
+        def extract_amount(txt: str) -> float | None:
+            """Return numeric amount if text looks like money and not TBD/Notify; otherwise None."""
+            if not txt:
+                return None
+            if re.search(r"\b(tbd|notify)\b", txt, re.I):
+                return None
+            m = re.findall(r"[\$£€]?\s*([\d,]+(?:\.\d{1,2})?)", txt)
+            if not m:
+                return None
+            try:
+                return float(m[-1].replace(",", ""))
+            except Exception:
+                return None
+
+        opening_bid_raw = t("[data-elm-id='opening_bid_value']")
+        reserve_root_txt = ""
+        reserve_has_notify = False
+        try:
+            # if reserve has <a data-elm-id='notify_me_link'> inside → treat as NOT an amount
+            notify_links = driver.find_elements(By.CSS_SELECTOR, "[data-elm-id='reserve_value'] a[data-elm-id='notify_me_link']")
+            reserve_has_notify = len(notify_links) > 0
+            if not reserve_has_notify:
+                reserve_root_txt = t("[data-elm-id='reserve_value']")
+        except Exception:
+            reserve_root_txt = ""
+
+        ob_amt = extract_amount(opening_bid_raw)
+        rv_amt = extract_amount(reserve_root_txt) if not reserve_has_notify else None
+
+        # pick the greater available amount (or the only one available)
+        chosen_amt: float | None = None
+        if ob_amt is not None and rv_amt is not None:
+            chosen_amt = max(ob_amt, rv_amt)
+        elif ob_amt is not None:
+            chosen_amt = ob_amt
+        elif rv_amt is not None:
+            chosen_amt = rv_amt
+
+        # set Opening Bid text from chosen amount (or blank if none)
+        if chosen_amt is not None:
+            # keep cents only if present in source (most site values are integers)
+            opening_bid_final = f"${chosen_amt:,.0f}" if chosen_amt.is_integer() else f"${chosen_amt:,.2f}"
+        else:
+            opening_bid_final = ""
+
+        # ---------- MERGE ----------
         merged = {
             "Link": link,
             "Address": keep_prev_if_blank(full_addr, "Address"),
             "State": (state or prev.get("State") or "").strip(),
-            "Opening Bid": keep_prev_if_blank(opening_bid, "Opening Bid"),
+            "Opening Bid": keep_prev_if_blank(opening_bid_final, "Opening Bid"),
             "Est. Market Value": keep_prev_if_blank(est_mv, "Est. Market Value"),
             "Auction Start Date": keep_prev_if_blank(auction_date, "Auction Start Date"),
             "Auction Start Time": keep_prev_if_blank(auction_time, "Auction Start Time"),
             "Status": keep_prev_if_blank(status_text, "Status"),
         }
 
-        # Completed
-        ob_norm = (merged["Opening Bid"] or "").strip().lower()
-        emv_has_value = bool((merged["Est. Market Value"] or "").strip())  # "Not available" counts
-        ob_present_and_real = bool(ob_norm) and ob_norm not in {"tbd", ""}
-        merged["Completed"] = "1" if (emv_has_value and ob_present_and_real) else "0"
+        # ---------- COMPLETED (UPDATED RULE) ----------
+        # If any actual amount available (from Opening Bid or Reserve), Completed = "1"
+        # Otherwise "0". (Then apply yesterday hard-close.)
+        amount_available = chosen_amt is not None
+        merged["Completed"] = "1" if amount_available else "0"
 
         # 🔒 Hard-close rule: if Auction Start Date == (today - 1 day) → Completed = 1 regardless
         auct_str = (merged.get("Auction Start Date") or "").strip()
@@ -1086,7 +1108,7 @@ def scrape_row_with_driver(
                 if auct_d == (date.today() - timedelta(days=1)):
                     merged["Completed"] = "1"
             except Exception:
-                pass  # if unparsable, ignore and keep prior Completed logic
+                pass  # keep prior Completed if unparsable
 
         merged["Added Date"] = datetime.now().strftime("%b %d, %Y")
 
@@ -1097,6 +1119,7 @@ def scrape_row_with_driver(
 
     except Exception:
         return {} if return_dict else []
+
 
 
 def insert_new_links_first(
