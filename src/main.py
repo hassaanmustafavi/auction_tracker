@@ -1685,7 +1685,7 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
                 if not hit_ceiling and current_top < scroll_limit:
                     try:
                         driver.execute_script("arguments[0].scrollTop = arguments[0].scrollTop + 350;", list_container)
-                        time.sleep(2)
+                        time.sleep(3)
                     except StaleElementReferenceException:
                         # Reacquire container on staleness
                         try:
@@ -1736,7 +1736,7 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
 
                     try:
                         driver.execute_script("arguments[0].scrollTop = Math.max(0, arguments[0].scrollTop - 400);", list_container)
-                        time.sleep(2)
+                        time.sleep(3)
                     except StaleElementReferenceException:
                         try:
                             _, list_container = get_asset_list_container()
