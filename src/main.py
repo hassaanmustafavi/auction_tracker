@@ -1494,6 +1494,7 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
         return inp
 
     def click_search_icon():
+        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "i[data-elm-id='desktop_search_input_delete_icon']")))
         icon = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "i[data-elm-id='desktop_search_input_search_icon']")))
         driver.execute_script("arguments[0].click();", icon)
 
@@ -1527,6 +1528,7 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
         def _click_heart():
             heart_el = card_root.find_element(By.CSS_SELECTOR, "i[data-elm-id^='save_property_icon_']")
             driver.execute_script("arguments[0].click();", heart_el)
+            time.sleep(3)
             return heart_el
 
         # first try
@@ -1683,6 +1685,10 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
                 if not hit_ceiling and current_top < scroll_limit:
                     try:
                         driver.execute_script("arguments[0].scrollTop = arguments[0].scrollTop + 350;", list_container)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollTop + 200;", list_container)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollTop - 200;", list_container)
                         time.sleep(2)
                     except StaleElementReferenceException:
                         # Reacquire container on staleness
@@ -1734,6 +1740,10 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
 
                     try:
                         driver.execute_script("arguments[0].scrollTop = Math.max(0, arguments[0].scrollTop - 400);", list_container)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].scrollTop = Math.max(0, arguments[0].scrollTop - 200);", list_container)
+                        time.sleep(1)
+                        driver.execute_script("arguments[0].scrollTop = Math.max(0, arguments[0].scrollTop + 200);", list_container)
                         time.sleep(2)
                     except StaleElementReferenceException:
                         try:
