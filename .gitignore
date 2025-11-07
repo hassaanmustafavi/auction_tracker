@@ -9,6 +9,7 @@ secrets/
 chrome profiles/
 temp/
 logs/
+mail_automation_data/
 
 # Virtual environments
 .venv
