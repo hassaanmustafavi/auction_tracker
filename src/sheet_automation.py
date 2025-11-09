@@ -870,14 +870,25 @@ def _match_csv_batch_against_chunk(
 
                 fb_int = money_to_int_or_none(final_bid)
                 ob_int = money_to_int_or_none(opening_bid)
-                surplus_str = ""
-                if fb_int is not None and ob_int is not None:
-                    surplus_str = str(fb_int - ob_int)
 
+                # Skip if either is missing
+                if fb_int is None or ob_int is None:
+                    continue
+
+                surplus = fb_int - ob_int
+
+                # NEW RULE — Only append if surplus >= 100
+                if surplus < 100:
+                    continue
+
+                surplus_str = str(surplus)
+
+                # Append because surplus is valid
                 target_rows_buffer.append([
                     link, addr_src, state_src, opening_bid, est_mv, auction_start_date,
                     final_bid, surplus_str
                 ])
+
         except Exception as ex:
             # Skip this CSV row on error, continue with next
             print(f"[uploader] match error on address '{row.get('address','')[:80]}…': {ex}")
