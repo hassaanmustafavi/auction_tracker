@@ -69,6 +69,10 @@ MAX_ATTEMPTS = 6
 BASE_DELAY   = 1.0  # seconds
 JITTER       = 0.5  # seconds
 
+# Money thresholds
+MIN_OPENING_BID = 100
+MIN_SURPLUS     = 100
+
 # ----------------------------------------------------
 
 # --------------- LIB IMPORTS (Google) ---------------
@@ -871,19 +875,22 @@ def _match_csv_batch_against_chunk(
                 fb_int = money_to_int_or_none(final_bid)
                 ob_int = money_to_int_or_none(opening_bid)
 
-                # Skip if either is missing
+                # Require both values to exist
                 if fb_int is None or ob_int is None:
                     continue
 
                 surplus = fb_int - ob_int
 
-                # NEW RULE — Only append if surplus >= 100
-                if surplus < 100:
+                # BOTH conditions must hold:
+                # 1) Opening Bid >= 100
+                # 2) Surplus >= 100
+                if ob_int < MIN_OPENING_BID or surplus < MIN_SURPLUS:
+                    # Optional: log why we skipped
+                    # print(f"[uploader] skip append: ob={ob_int} surplus={surplus} for link={link[:60]}")
                     continue
 
                 surplus_str = str(surplus)
 
-                # Append because surplus is valid
                 target_rows_buffer.append([
                     link, addr_src, state_src, opening_bid, est_mv, auction_start_date,
                     final_bid, surplus_str
