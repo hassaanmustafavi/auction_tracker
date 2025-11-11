@@ -70,7 +70,7 @@ BASE_DELAY   = 1.0  # seconds
 JITTER       = 0.5  # seconds
 
 # Money thresholds
-MIN_OPENING_BID = 100
+MIN_OPENING_BID = 0
 MIN_SURPLUS     = 100
 
 # ----------------------------------------------------
