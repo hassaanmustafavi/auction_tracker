@@ -68,7 +68,7 @@ PRE_TYPE_WAIT = 1.0
 MAX_LOGIN_RETRIES = 3  # fresh browser retries per profile
 REFRESH_WAIT_SECONDS = 15  # 15–20 sec window as you prefer
 CAPTCHA_WAIT = 3*60
-WAIT_AFTER_EACH_PROFILE = 15*60
+WAIT_AFTER_EACH_PROFILE = 5*60
 WAIT_AFTER_EACH_STATE = 3*60
 WAIT_AFTER_EACH_DETAIL_PAGE = 1
 
@@ -77,6 +77,9 @@ DISPLAY_MAP = {
     "profile_1": ":1",
     "profile_2": ":1",
     "profile_3": ":1",
+    "profile_7": ":1",
+    "profile_8": ":1",
+    "profile_9": ":1",
     "profile_4": ":2",
     "profile_5": ":3",
     "profile_6": ":4",
@@ -175,6 +178,50 @@ PROFILE_SETTINGS: Dict[str, Dict] = {
         "platform": "Linux x86_64",
         "extra_headers": {
             "Accept-Language": "en-US,en;q=0.7",
+            "Referer": "https://www.auction.com/",
+        },
+    },
+        "profile_7": {
+        "profile_directory_name": "Default",
+        "user_agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/127.0.0.0 Safari/537.36"
+        ),
+        "accept_language": "en-US,en;q=0.8",
+        "platform": "Win32",
+        "extra_headers": {
+            "Accept-Language": "en-US,en;q=0.8",
+            "Referer": "https://www.auction.com/",
+        },
+    },
+
+    "profile_8": {
+        "profile_directory_name": "Default",
+        "user_agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/127.0.0.0 Safari/537.36"
+        ),
+        "accept_language": "en-CA,en;q=0.7",
+        "platform": "MacIntel",
+        "extra_headers": {
+            "Accept-Language": "en-CA,en;q=0.7",
+            "Referer": "https://www.auction.com/",
+        },
+    },
+
+    "profile_9": {
+        "profile_directory_name": "Default",
+        "user_agent": (
+            "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "accept_language": "en-US,en;q=0.6",
+        "platform": "Linux x86_64",
+        "extra_headers": {
+            "Accept-Language": "en-US,en;q=0.6",
             "Referer": "https://www.auction.com/",
         },
     },
@@ -1851,8 +1898,8 @@ def get_links_and_status(driver, wait, states, profile_name=None, zone=None):
 # Main flow
 # ----------------------------
 def main():
-    
-    profiles_in_order = ["profile_1", "profile_2", "profile_3"]
+
+    profiles_in_order = ["profile_1", "profile_2", "profile_3", "profile_7", "profile_8", "profile_9"]
 
     site_url = globals().get("BASE_URL")
 
