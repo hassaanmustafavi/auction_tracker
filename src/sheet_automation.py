@@ -875,8 +875,12 @@ def _match_csv_batch_against_chunk(
                 fb_int = money_to_int_or_none(final_bid)
                 ob_int = money_to_int_or_none(opening_bid)
 
-                # Require both values to exist
-                if fb_int is None or ob_int is None:
+                # Treat missing Opening Bid as 0
+                if ob_int is None:
+                    ob_int = 0
+
+                # Require Final Bid to exist at least
+                if fb_int is None:
                     continue
 
                 surplus = fb_int - ob_int
